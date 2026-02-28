@@ -1,50 +1,70 @@
-# ZERA Analytics Intelligence Platform
+# ZERA Analytics Intelligence Platform — v2.0 Dynamic
 
 AI-enabled procurement & smart meter analytics dashboard for ZERA Electronics India.
+
+> **Branch**: `v2_dynamic` — Enhanced from `v1_stable`
+
+## What's New in v2.0
+
+| Feature | Description |
+|---------|-------------|
+| **Lazy Loading** | Data loads on-demand, not at startup — 3x faster launch |
+| **File Upload Manager** | Upload Excel/CSV files dynamically — each becomes a queryable table |
+| **Dynamic Data Source** | Choose: bundled data, upload new, or both |
+| **Supplier/Client Filters** | Dropdown filters on every data page + date range picker |
+| **CSV/Excel Download** | Download filtered data from any page |
+| **AI Query Chat** | Ask questions in English → auto-generates SQL → shows results → download |
+| **Direct SQL Mode** | Write and execute your own SQL queries (read-only, safe) |
+| **Tableau-style Graph Builder** | Pick any table, any columns, any chart type — 15 chart types |
+| **Company Hub** | Employee directory, HR policies, meter testing standards |
+| **Reports Blog** | Auto-generated procurement & meter testing insight reports |
+| **Quick Query Suggestions** | Pre-built queries for common questions |
 
 ## Quick Start
 
 ```bash
-# 1. Clone/copy this project
-# 2. Add your data files to the data/ folder:
-#    - Purchase-Stock-2023-24_BS_290724.xlsx
-#    - All S-14_MP2_*.pdf meter test files
-#    - ACCURCAY_AND_DATA_READOUT.pdf
-#    - POWER_CONSUMPTION_TEST.pdf
+# 1. Clone this branch
+git clone -b v2_dynamic https://github.com/Solx7c0de/zera_intelligence_dashboard.git
+cd zera_intelligence_dashboard
 
-# 3. Install dependencies
+# 2. Install dependencies
 pip install -r requirements.txt
 
-# 4. Run the app
+# 3. Run the app
 streamlit run app.py
 ```
 
-## Project Structure
+## Project Structure (v2)
 
 ```
-procurement_ai/
-├── app.py                    # Main entry point + executive overview
-├── config.py                 # Configuration constants
-├── requirements.txt          # Python dependencies
-├── data/                     # Your Excel + PDF data files
+zera_intelligence_dashboard/
+├── app.py                          # Main entry — lazy loading + data source selector
+├── config.py                       # Configuration constants (v2: chart types, upload dir)
+├── requirements.txt                # Python dependencies (v2: +kaleido)
+├── data/                           # Bundled Excel + PDF data files
+├── uploads/                        # (auto-created) User-uploaded files
 ├── database/
-│   ├── db.py                 # SQLAlchemy engine + helper functions
-│   ├── schema.sql            # Database schema (auto-created)
-│   └── procurement.db        # SQLite DB (auto-generated on first run)
+│   ├── db.py                       # SQLAlchemy engine + v2: dynamic tables, safe_query, schema helpers
+│   ├── schema.sql                  # Base schema (auto-created on first run)
+│   └── procurement.db              # SQLite DB (auto-generated)
 ├── modules/
-│   ├── cleaning.py           # Data cleaning pipeline
-│   ├── data_loader.py        # Excel sheet parser (4 sheets)
-│   ├── pdf_parser.py         # Meter PDF parser (voltage/power/txn events)
-│   ├── analytics.py          # Analytics functions (KPIs, breakdowns)
-│   └── ml_models.py          # ML models (risk scoring, anomaly detection, clustering, forecast)
+│   ├── cleaning.py                 # Data cleaning pipeline
+│   ├── data_loader.py              # Excel sheet parser (4 sheets)
+│   ├── pdf_parser.py               # Meter PDF parser
+│   ├── analytics.py                # Analytics functions (KPIs, breakdowns)
+│   └── ml_models.py                # ML models (risk, anomaly, clustering, forecast)
 └── pages/
-    ├── 1_Dashboard.py        # Executive dashboard with KPI cards
-    ├── 2_Procurement.py      # Procurement deep dive (4 tabs)
-    ├── 3_Meter_Analytics.py  # Smart meter event analysis
-    └── 4_AI_Insights.py      # ML-powered insights (4 tabs)
+    ├── 1_Dashboard.py              # Executive dashboard + download
+    ├── 2_Procurement.py            # v2: Supplier filter dropdown + date range + download
+    ├── 3_Meter_Analytics.py        # v2: Event type filters + download
+    ├── 4_AI_Insights.py            # ML-powered insights (4 tabs)
+    ├── 5_Data_Manager.py           # NEW: Upload, filter, preview, download any table
+    ├── 6_AI_Query.py               # NEW: English → SQL → results → download
+    ├── 7_Graph_Builder.py          # NEW: Tableau-style chart builder (15 chart types)
+    └── 8_Company_Hub.py            # NEW: Employee directory, HR, meter specs, blog
 ```
 
-## Data Loaded
+## Data Tables
 
 | Table | Records | Source |
 |-------|---------|--------|
@@ -56,6 +76,12 @@ procurement_ai/
 | meter_voltage_events | 49 | PDF: Voltage Events |
 | meter_power_events | 50 | PDF: Power Events |
 | meter_transaction_events | 5 | PDF: Transaction Events |
+| *uploaded_** | dynamic | User uploads via Data Manager |
+| *employees* | dynamic | Created/uploaded via Company Hub |
+
+## Chart Types (Graph Builder)
+
+Bar · Horizontal Bar · Grouped Bar · Line · Area · Scatter · Bubble · Pie · Donut · Histogram · Box Plot · Treemap · Sunburst · Heatmap
 
 ## ML Models
 
@@ -70,5 +96,9 @@ procurement_ai/
 
 1. Push to GitHub
 2. Go to share.streamlit.io
-3. Connect your repo, set `app.py` as main file
-4. Deploy — share the URL for your presentation
+3. Connect your repo, set `app.py` as main file, branch `v2_dynamic`
+4. Deploy — share the URL
+
+## About
+
+Built by Vishvam | ZERA India Pvt. Ltd. Internship 2025-26

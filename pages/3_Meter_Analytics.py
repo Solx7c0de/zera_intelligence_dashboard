@@ -117,9 +117,40 @@ with tab2:
                          xaxis_title="Event Index", yaxis_title="Voltage (V)")
         st.plotly_chart(fig, use_container_width=True)
 
+        # Filter by event type
+        st.markdown("#### 🎛️ Filter Events")
+        event_types = sorted(events["event_type"].dropna().unique().tolist())
+        sel_types = st.multiselect("Filter by event type:", event_types, key="volt_type_filter")
+        sel_action = st.multiselect("Filter by action:", ["Occurrence", "Restoration", "Unknown"], key="volt_action_filter")
+
+        filtered_events = events.copy()
+        if sel_types:
+            filtered_events = filtered_events[filtered_events["event_type"].isin(sel_types)]
+        if sel_action:
+            filtered_events = filtered_events[filtered_events["event_action"].isin(sel_action)]
+
+        st.markdown(f"**Showing {len(filtered_events)} of {len(events)} events**")
+
         # Raw data table
         with st.expander("📋 View Raw Event Data"):
-            st.dataframe(events, use_container_width=True, hide_index=True, height=400)
+            st.dataframe(filtered_events, use_container_width=True, hide_index=True, height=400)
+
+        # Download
+        import io
+        dl1, dl2 = st.columns(2)
+        with dl1:
+            csv_v = filtered_events.to_csv(index=False).encode()
+            st.download_button("⬇️ Download Voltage Events (CSV)", csv_v,
+                             file_name="voltage_events_filtered.csv", mime="text/csv",
+                             use_container_width=True, key="dl_volt_csv")
+        with dl2:
+            buf = io.BytesIO()
+            with pd.ExcelWriter(buf, engine="openpyxl") as w:
+                filtered_events.to_excel(w, index=False)
+            st.download_button("⬇️ Download Voltage Events (Excel)", buf.getvalue(),
+                             file_name="voltage_events_filtered.xlsx",
+                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             use_container_width=True, key="dl_volt_xlsx")
     else:
         st.warning("No voltage events parsed yet")
 
@@ -128,7 +159,6 @@ with tab3:
     pwr = query_df("SELECT * FROM meter_power_events")
     if len(pwr) > 0:
         st.success(f"⚡ {len(pwr)} power failure events parsed")
-        import pandas as pdx
         pwr["event_datetime"] = pd.to_datetime(pwr["event_datetime"], errors="coerce")
         pwr_sorted = pwr.sort_values("event_datetime")
 

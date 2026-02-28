@@ -86,5 +86,10 @@ with col4:
         # Pass/Fail table
         st.dataframe(meters, use_container_width=True, hide_index=True)
 
+        # Download
+        csv_meters = meters.to_csv(index=False).encode()
+        st.download_button("⬇️ Download Meter Data (CSV)", csv_meters,
+                         file_name="meter_test_results.csv", mime="text/csv")
+
 st.divider()
-st.caption("Data Source: Purchase-Stock-2023-24 Excel + ZERA Meter Test PDFs | Session 13, Jan 2026")
+st.caption("Data Source: Purchase-Stock-2023-24 Excel + ZERA Meter Test PDFs | Session 13, Jan 2026 | v2.0 Dynamic")
