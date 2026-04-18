@@ -7,7 +7,10 @@ import re
 from database.db import init_db, get_all_schemas_text, safe_query, list_tables
 
 st.set_page_config(page_title="AI Query Chat | ZERA Analytics", page_icon="💬", layout="wide")
-init_db()
+
+from database.db import ensure_data_loaded, get_all_schemas_text, safe_query, list_tables
+# ...
+ensure_data_loaded()   # ← replaces init_db()
 
 
 # ═══════════════════════════════════════════════════════════════

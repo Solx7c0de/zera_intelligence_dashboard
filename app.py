@@ -34,15 +34,8 @@ def ensure_db_ready():
 
 
 def load_existing_data():
-    if st.session_state.get("bundled_data_loaded"):
-        return
-    from modules.data_loader import load_all_procurement_data
-    from modules.pdf_parser import load_all_meter_data
-    with st.spinner("Loading bundled data files (one-time)..."):
-        proc = load_all_procurement_data()
-        meter = load_all_meter_data()
-        st.session_state.bundled_data_loaded = True
-        st.session_state.load_results = {**proc, **meter}
+    from database.db import ensure_data_loaded
+    ensure_data_loaded()
 
 
 def handle_sidebar_upload(uploaded_file):

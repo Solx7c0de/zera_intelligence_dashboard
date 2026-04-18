@@ -96,3 +96,16 @@ def upload_dataframe_to_db(df, table_name, if_exists="replace"):
     )
     df.to_sql(table_name, engine, if_exists=if_exists, index=False)
     return len(df)
+
+
+def ensure_data_loaded():
+    """Call from any page — loads bundled data once per session."""
+    import streamlit as st
+    if st.session_state.get("bundled_data_loaded"):
+        return
+    init_db()
+    from modules.data_loader import load_all_procurement_data
+    from modules.pdf_parser import load_all_meter_data
+    load_all_procurement_data()
+    load_all_meter_data()
+    st.session_state.bundled_data_loaded = True
