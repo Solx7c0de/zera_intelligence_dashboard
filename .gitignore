@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 venv/
 __pycache__/
 *.pyc
@@ -7,3 +8,15 @@ __pycache__/
 .streamlit/secrets.toml
 .vscode/
 .idea/
+=======
+venv/
+__pycache__/
+*.pyc
+.env
+*.db
+.DS_Store
+.streamlit/secrets.toml
+.vscode/
+.idea/
+.venv/
+>>>>>>> 73076baee88716553f8c10db16cc7860e56c6444
