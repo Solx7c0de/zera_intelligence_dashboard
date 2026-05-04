@@ -3,7 +3,7 @@ import os
 import re
 import pdfplumber
 import pandas as pd
-from database.db import insert_df
+from database.db import insert_df, table_row_count
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
@@ -24,20 +24,19 @@ def parse_voltage_events(pdf_path: str) -> pd.DataFrame:
             text = page.extract_text() or ""
             all_lines.extend(text.split("\n"))
     
-    # Pattern for the data line
     data_re = re.compile(
-        r"(\d{2}\.\d{2}\.\d{4}/\d{2}:\d{2}:\s*)"  # datetime
-        r"(.+?)\s+"                                    # event type text
-        r"([\d.]+)\s+A\s+"                             # IR
-        r"([\d.]+)\s+A\s+"                             # IY
-        r"([\d.]+)\s+A\s+"                             # IB
-        r"([\d.]+)\s+V\s+"                             # VRN
-        r"([\d.]+)\s+V\s+"                             # VYN
-        r"([\d.]+)\s+V\s+"                             # VBN
-        r"([\d.]+)\s+"                                  # PF R
-        r"([\d.]+)\s+"                                  # PF Y
-        r"([\d.]+)\s+"                                  # PF B
-        r"(\d+)\s+Wh"                                   # cum energy
+        r"(\d{2}\.\d{2}\.\d{4}/\d{2}:\d{2}:\s*)"
+        r"(.+?)\s+"
+        r"([\d.]+)\s+A\s+"
+        r"([\d.]+)\s+A\s+"
+        r"([\d.]+)\s+A\s+"
+        r"([\d.]+)\s+V\s+"
+        r"([\d.]+)\s+V\s+"
+        r"([\d.]+)\s+V\s+"
+        r"([\d.]+)\s+"
+        r"([\d.]+)\s+"
+        r"([\d.]+)\s+"
+        r"(\d+)\s+Wh"
     )
     
     i = 0
@@ -52,33 +51,28 @@ def parse_voltage_events(pdf_path: str) -> pd.DataFrame:
             pf_r, pf_y, pf_b = float(m.group(9)), float(m.group(10)), float(m.group(11))
             cum_energy = int(m.group(12))
             
-            # Next 2 lines: seconds fragment + Occurrence/Restoration
             event_detail = ""
             event_action = "Unknown"
             if i + 1 < len(all_lines):
-                event_detail = all_lines[i + 1].strip()  # e.g. "18 missing-"
+                event_detail = all_lines[i + 1].strip()
             if i + 2 < len(all_lines):
                 action_line = all_lines[i + 2].strip()
                 if "Restoration" in action_line:
                     event_action = "Restoration"
-                elif "Occur" in action_line:  # handles both "Occurrence" and "Ocurrence" (typo in PDF)
+                elif "Occur" in action_line:
                     event_action = "Occurrence"
             
-            # Reconstruct full event type from fragments
             full_event = event_raw
             if event_detail:
-                # Remove leading number (seconds) and trailing dash
                 detail_clean = re.sub(r"^\d+\s*", "", event_detail).rstrip("-").strip()
                 if detail_clean:
                     full_event = f"{event_raw} {detail_clean}"
             
-            # Parse datetime
             try:
                 event_dt = pd.to_datetime(dt_str, format="%d.%m.%Y/%H:%M:", errors="coerce")
             except:
                 event_dt = None
 
-            # Extract tamper count from cumulative data (4 lines after action)
             tamper_count = None
             for offset in range(3, 7):
                 if i + offset < len(all_lines):
@@ -87,7 +81,6 @@ def parse_voltage_events(pdf_path: str) -> pd.DataFrame:
                     if tm:
                         tamper_count = int(tm.group(2))
                         break
-                    # Alternative: just number between Wh amounts
                     tm2 = re.match(r"(\d+)\s+Wh\s+(\d+)\s+(\d+)\s+VAh\s+(\d+)\s+VAh", cum_line)
                     if tm2:
                         tamper_count = int(tm2.group(2))
@@ -103,7 +96,7 @@ def parse_voltage_events(pdf_path: str) -> pd.DataFrame:
                 "cum_energy_kwh_import": cum_energy,
                 "cum_tamper_count": tamper_count,
             })
-            i += 7  # skip past this block
+            i += 7
         else:
             i += 1
     
@@ -111,9 +104,7 @@ def parse_voltage_events(pdf_path: str) -> pd.DataFrame:
 
 
 def parse_power_events(pdf_path: str) -> pd.DataFrame:
-    """Parse power related event profile PDF.
-    Format: dd.mm.yyyy/HH:MM:SS Power failure (3 phase)-Occurrence/Restoration
-    """
+    """Parse power related event profile PDF."""
     rows = []
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
@@ -194,7 +185,6 @@ def parse_transaction_events(pdf_path: str) -> pd.DataFrame:
             text = page.extract_text() or ""
             all_lines.extend(text.split("\n"))
     
-    # Transaction events: date/time + event name + values
     txn_re = re.compile(r"(\d{2}\.\d{2}\.\d{4}/\d{2}:\d{2}:\d{2})\s+(.+)")
     
     for line in all_lines:
@@ -214,8 +204,7 @@ def parse_transaction_events(pdf_path: str) -> pd.DataFrame:
 
 
 def parse_accuracy_report() -> pd.DataFrame:
-    """Hardcoded accuracy & data readout results from the ACCURACY PDF.
-    This data was manually extracted since the PDF format is complex tabular."""
+    """Hardcoded accuracy & data readout results from the ACCURACY PDF."""
     data = [
         {"meter_serial": "3003596", "manufacturer": "AVON", "manufacture_year": 2017,
          "firmware_version": "01.07.05", "total_evaluation": "pass",
@@ -237,45 +226,49 @@ def parse_accuracy_report() -> pd.DataFrame:
     return pd.DataFrame(data)
 
 
+def _load_if_empty(table_name: str, parser_fn, *parser_args, results: dict):
+    """Skip-if-already-populated wrapper. Handles missing-table case (-1) too."""
+    try:
+        existing = table_row_count(table_name)
+        if existing > 0:
+            results[table_name] = existing
+            return
+        df = parser_fn(*parser_args)
+        if df is not None and len(df) > 0:
+            insert_df(df, table_name)
+            results[table_name] = len(df)
+        else:
+            results[table_name] = 0
+    except Exception as e:
+        results[table_name] = f"Error: {e}"
+
+
 def load_all_meter_data() -> dict:
-    """Parse all meter PDFs and load into database. Returns row counts."""
+    """Parse all meter PDFs and load into database. Idempotent — skips
+    tables that already have data so repeated calls don't duplicate rows."""
     results = {}
     
     # Accuracy test (hardcoded)
-    acc_df = parse_accuracy_report()
-    insert_df(acc_df, "meter_accuracy_test")
-    results["meter_accuracy_test"] = len(acc_df)
+    _load_if_empty("meter_accuracy_test", parse_accuracy_report, results=results)
     
     # Voltage events
     voltage_pdf = os.path.join(DATA_DIR, "S-14_MP2_Voltage_Related_Event_Profile_3003597_02-02-2026_152227.pdf")
     if os.path.exists(voltage_pdf):
-        v_df = parse_voltage_events(voltage_pdf)
-        if len(v_df) > 0:
-            insert_df(v_df, "meter_voltage_events")
-        results["meter_voltage_events"] = len(v_df)
+        _load_if_empty("meter_voltage_events", parse_voltage_events, voltage_pdf, results=results)
     
     # Power events
     power_pdf = os.path.join(DATA_DIR, "S-14_MP2_Power_Realated_Event_Profile_3003597_02-02-2026_152306.pdf")
     if os.path.exists(power_pdf):
-        p_df = parse_power_events(power_pdf)
-        if len(p_df) > 0:
-            insert_df(p_df, "meter_power_events")
-        results["meter_power_events"] = len(p_df)
+        _load_if_empty("meter_power_events", parse_power_events, power_pdf, results=results)
     
     # Other events
     other_pdf = os.path.join(DATA_DIR, "S-14_MP2_Other_Event_Profile_3003597_02-02-2026_152349.pdf")
     if os.path.exists(other_pdf):
-        o_df = parse_other_events(other_pdf)
-        if len(o_df) > 0:
-            insert_df(o_df, "meter_other_events")
-        results["meter_other_events"] = len(o_df)
+        _load_if_empty("meter_other_events", parse_other_events, other_pdf, results=results)
     
     # Transaction events
     txn_pdf = os.path.join(DATA_DIR, "S-14_MP2_Transaction_Related_Event_3003597_02-02-2026_152421.pdf")
     if os.path.exists(txn_pdf):
-        t_df = parse_transaction_events(txn_pdf)
-        if len(t_df) > 0:
-            insert_df(t_df, "meter_transaction_events")
-        results["meter_transaction_events"] = len(t_df)
+        _load_if_empty("meter_transaction_events", parse_transaction_events, txn_pdf, results=results)
     
     return results
