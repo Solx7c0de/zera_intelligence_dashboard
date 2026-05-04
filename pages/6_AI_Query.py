@@ -4,17 +4,19 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pandas as pd
 import io
 import re
-from database.db import init_db, get_all_schemas_text, safe_query, list_tables
+from database.db import (
+    ensure_data_loaded,
+    get_all_schemas_text,
+    safe_query,
+    list_tables,
+)
 
 st.set_page_config(page_title="AI Query Chat | ZERA Analytics", page_icon="💬", layout="wide")
-
-from database.db import ensure_data_loaded, get_all_schemas_text, safe_query, list_tables
-# ...
-ensure_data_loaded()   # ← replaces init_db()
+ensure_data_loaded()
 
 
 # ═══════════════════════════════════════════════════════════════
-# HELPER FUNCTIONS (must be defined before UI calls them)
+# HELPER FUNCTIONS (defined before UI calls them)
 # ═══════════════════════════════════════════════════════════════
 def _generate_sql_from_question(question: str, schema: str) -> str:
     """Generate SQL from natural language using pattern matching + heuristics."""
@@ -140,7 +142,11 @@ if not tables:
     st.stop()
 
 with st.expander("🗄️ Available Database Schema", expanded=False):
-    st.code(get_all_schemas_text(), language="sql")
+    try:
+        st.code(get_all_schemas_text(), language="sql")
+    except Exception as e:
+        st.error(f"Couldn't render schema: {e}")
+        st.caption("Try writing a SQL query directly in the SQL tab below — schema render failure shouldn't block queries.")
 
 # ═══════════════════════════════════════════════════════════════
 # QUERY INTERFACE — TWO MODES

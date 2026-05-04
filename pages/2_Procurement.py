@@ -4,36 +4,60 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import plotly.express as px
 import pandas as pd
 import io
-from database.db import query_df, init_db
+from database.db import query_df, ensure_data_loaded, table_row_count, EXPECTED_PROCUREMENT_TABLES
 from modules.analytics import get_supplier_analysis, get_monthly_spend
 
 st.set_page_config(page_title="Procurement | ZERA Analytics", page_icon="📦", layout="wide")
-init_db()
+ensure_data_loaded()
 
-st.markdown("## 📦 Procurement Deep Dive")
-st.caption("Supplier analysis, cost breakdowns, inventory tracking — with filters & download")
+# ── Header + reload control ───────────────────────────────────
+hdr_left, hdr_right = st.columns([5, 1])
+with hdr_left:
+    st.markdown("## 📦 Procurement Deep Dive")
+    st.caption("Supplier analysis, cost breakdowns, inventory tracking — with filters & download")
+with hdr_right:
+    st.write("")  # vertical spacer
+    if st.button("🔄 Reload data", use_container_width=True,
+                 help="Re-runs the bundled procurement & meter loaders"):
+        st.session_state["bundled_data_loaded"] = False
+        ensure_data_loaded(force=True)
+        st.rerun()
+
 st.divider()
 
 tab1, tab2, tab3, tab4 = st.tabs(["🌍 Foreign Imports", "🇮🇳 India Purchases", "📦 Packing Material", "👷 Labour Charges"])
+
+
+def _show_empty_state(label):
+    """Helper: friendly empty-state with diagnostics for the user."""
+    st.warning(f"No {label} data loaded.")
+    st.caption("If other tabs show data, the bundled loader skipped this source. "
+               "Try **🔄 Reload data** at the top of the page.")
+    with st.expander("🔍 Diagnostics — table row counts"):
+        for tname in EXPECTED_PROCUREMENT_TABLES:
+            cnt = table_row_count(tname)
+            display = f"{cnt:,}" if cnt >= 0 else "error"
+            st.write(f"- `{tname}`: **{display}** rows")
 
 
 def _render_procurement_tab(table_name, value_col, label, tab_key):
     """Reusable renderer for each procurement tab with filters & download."""
     df = query_df(f"SELECT * FROM {table_name}")
     if len(df) == 0:
-        st.warning(f"No {label} data loaded")
+        _show_empty_state(label)
         return
 
     # ── FILTERS ───────────────────────────────────────────────
     with st.expander("🎛️ Filters", expanded=True):
         fc1, fc2, fc3 = st.columns(3)
         with fc1:
-            suppliers = sorted(df["supplier"].dropna().unique().tolist())
+            suppliers = sorted(df["supplier"].dropna().unique().tolist()) if "supplier" in df.columns else []
             selected_sup = st.multiselect(
                 "🏢 Supplier", suppliers, key=f"sup_{tab_key}",
                 placeholder="All suppliers"
             )
         with fc2:
+            date_range = None
             if "purchase_date" in df.columns:
                 df["purchase_date"] = pd.to_datetime(df["purchase_date"], errors="coerce")
                 valid_dates = df["purchase_date"].dropna()
@@ -44,15 +68,10 @@ def _render_procurement_tab(table_name, value_col, label, tab_key):
                         "📅 Date Range", value=(min_d, max_d),
                         min_value=min_d, max_value=max_d, key=f"date_{tab_key}"
                     )
-                else:
-                    date_range = None
-            else:
-                date_range = None
         with fc3:
+            search_item = ""
             if "item_description" in df.columns:
                 search_item = st.text_input("🔍 Search item", key=f"item_{tab_key}")
-            else:
-                search_item = ""
 
     # Apply filters
     filtered = df.copy()
@@ -69,9 +88,12 @@ def _render_procurement_tab(table_name, value_col, label, tab_key):
     # ── KPIs ──────────────────────────────────────────────────
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Records", f"{len(filtered):,}")
-    c2.metric("Total Value", f"₹{filtered[value_col].sum():,.0f}")
-    c3.metric("Suppliers", f"{filtered['supplier'].nunique()}")
-    c4.metric("Avg Order", f"₹{filtered[value_col].mean():,.0f}" if len(filtered) > 0 else "—")
+    c2.metric("Total Value", f"₹{filtered[value_col].sum():,.0f}" if value_col in filtered.columns else "—")
+    c3.metric("Suppliers", f"{filtered['supplier'].nunique()}" if "supplier" in filtered.columns else "—")
+    if value_col in filtered.columns and len(filtered) > 0:
+        c4.metric("Avg Order", f"₹{filtered[value_col].mean():,.0f}")
+    else:
+        c4.metric("Avg Order", "—")
 
     st.divider()
 
@@ -79,16 +101,17 @@ def _render_procurement_tab(table_name, value_col, label, tab_key):
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("#### Supplier-wise Spend")
-        sup_spend = (
-            filtered.groupby("supplier")[value_col]
-            .sum().reset_index()
-            .sort_values(value_col, ascending=False).head(15)
-        )
-        if len(sup_spend) > 0:
-            fig = px.treemap(sup_spend, path=["supplier"], values=value_col,
-                           color=value_col, color_continuous_scale="Blues")
-            fig.update_layout(margin=dict(t=30, b=10), height=400)
-            st.plotly_chart(fig, use_container_width=True)
+        if "supplier" in filtered.columns and value_col in filtered.columns:
+            sup_spend = (
+                filtered.groupby("supplier")[value_col]
+                .sum().reset_index()
+                .sort_values(value_col, ascending=False).head(15)
+            )
+            if len(sup_spend) > 0:
+                fig = px.treemap(sup_spend, path=["supplier"], values=value_col,
+                               color=value_col, color_continuous_scale="Blues")
+                fig.update_layout(margin=dict(t=30, b=10), height=400)
+                st.plotly_chart(fig, use_container_width=True)
 
     with col2:
         st.markdown("#### Monthly Trend")
